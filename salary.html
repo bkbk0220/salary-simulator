@@ -120,15 +120,30 @@
 
     /* ── 테이블 ── */
     .table-wrap { overflow-x: auto; border-radius: var(--radius-sm); border: 0.5px solid var(--border); }
+    .table-wrap.scrollable { max-height: 480px; overflow-y: auto; }
     table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
     thead th {
       background: var(--surface2); padding: 9px 10px;
       text-align: center; font-weight: 600; font-size: 11px; color: var(--text2);
       border-bottom: 0.5px solid var(--border2);
+      position: sticky; top: 0; z-index: 2;
     }
+    /* 틀고정: #, 삭제, 사번, 이름 4개 컬럼 */
+    thead th.freeze-1 { position: sticky; left: 0;   z-index: 3; background: var(--surface2); }
+    thead th.freeze-2 { position: sticky; left: 36px; z-index: 3; background: var(--surface2); }
+    thead th.freeze-3 { position: sticky; left: 100px; z-index: 3; background: var(--surface2); box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+    thead th.freeze-4 { position: sticky; left: 164px; z-index: 3; background: var(--surface2); box-shadow: 2px 0 6px rgba(0,0,0,0.07); }
+    tbody td.freeze-1 { position: sticky; left: 0;    z-index: 1; background: var(--surface); }
+    tbody td.freeze-2 { position: sticky; left: 36px;  z-index: 1; background: var(--surface); }
+    tbody td.freeze-3 { position: sticky; left: 100px; z-index: 1; background: var(--surface); box-shadow: 2px 0 4px rgba(0,0,0,0.06); }
+    tbody td.freeze-4 { position: sticky; left: 164px; z-index: 1; background: var(--surface); box-shadow: 2px 0 6px rgba(0,0,0,0.07); }
+    tbody tr:hover td { background: var(--surface2); }
+    tbody tr:hover td.freeze-1,
+    tbody tr:hover td.freeze-2,
+    tbody tr:hover td.freeze-3,
+    tbody tr:hover td.freeze-4 { background: var(--surface2); }
     tbody tr { border-bottom: 0.5px solid var(--border); }
     tbody tr:last-child { border-bottom: none; }
-    tbody tr:hover { background: var(--surface2); }
     tbody td { padding: 7px 10px; color: var(--text); text-align: center; }
     tbody td.num { font-variant-numeric: tabular-nums; }
     tbody td.accent { color: var(--accent); font-weight: 600; }
@@ -390,19 +405,21 @@
         </button>
       </div>
     </div>
-    <div class="table-wrap">
+    <div class="table-wrap scrollable">
       <table id="main-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>사번</th><th>이름</th><th>직원유형</th><th>인사상태</th>
+            <th class="freeze-1">#</th>
+            <th class="freeze-2">삭제</th>
+            <th class="freeze-3">사번</th>
+            <th class="freeze-4">이름</th>
+            <th>직원유형</th><th>인사상태</th>
             <th>직책</th><th>직급</th><th>입사일</th>
             <th>부서1</th><th>부서2</th><th>부서3</th><th>부서4</th>
             <th>총 경력</th><th>평가등급</th>
             <th>인상 전 연봉</th><th>인상 전 월급여</th>
             <th>인상률</th>
             <th>인상 후 연봉</th><th>인상 후 월급여</th>
-            <th>삭제</th>
           </tr>
         </thead>
         <tbody id="main-tbody">
@@ -688,7 +705,7 @@ function makeEmployee(r) {
     인사상태: String(r['인사상태'] || ''),
     직책: String(r['직책'] || ''),
     직급: String(r['직급'] || ''),
-    입사일: String(r['입사일'] || ''),
+    입사일: fmtDate(r['입사일']),
     부서1: String(r['부서1'] || ''),
     부서2: String(r['부서2'] || ''),
     부서3: String(r['부서3'] || ''),
@@ -748,7 +765,7 @@ function submitAddModal() {
     인사상태: document.getElementById('f-인사상태').value.trim(),
     직책: document.getElementById('f-직책').value.trim(),
     직급: document.getElementById('f-직급').value.trim(),
-    입사일: document.getElementById('f-입사일').value.trim(),
+    입사일: fmtDate(document.getElementById('f-입사일').value.trim()),
     부서1: document.getElementById('f-부서1').value.trim(),
     부서2: document.getElementById('f-부서2').value.trim(),
     부서3: document.getElementById('f-부서3').value.trim(),
@@ -808,29 +825,29 @@ function renderTable() {
 
   tbody.innerHTML = filtered.map((e, i) => `
     <tr>
-      <td>${i+1}</td>
-      <td>${e.사번}</td>
-      <td>${e.이름}</td>
+      <td class="freeze-1">${i+1}</td>
+      <td class="freeze-2">
+        <button class="btn danger" style="height:24px; padding:0 7px; font-size:11px;"
+          onclick="confirmAction('deleteOne', {idx:${e._idx}, 이름:'${e.이름}'})">삭제</button>
+      </td>
+      <td class="freeze-3">${e.사번}</td>
+      <td class="freeze-4">${e.이름}</td>
       <td>${e.직원유형}</td>
       <td>${e.인사상태}</td>
       <td>${e.직책}</td>
       <td>${e.직급}</td>
-      <td>${e.입사일}</td>
+      <td>${fmtDate(e.입사일)}</td>
       <td>${e.부서1}</td>
       <td>${e.부서2}</td>
       <td>${e.부서3}</td>
       <td>${e.부서4}</td>
       <td>${e.총경력 ? parseFloat(e.총경력).toFixed(1) : '—'}</td>
       <td>${e.평가등급}</td>
-      <td class="num">${fmt(e.인상전연봉)}</td>
-      <td class="num">${fmt(e.인상전월급여)}</td>
+      <td class="num">${fmtComma(e.인상전연봉)}</td>
+      <td class="num">${fmtComma(e.인상전월급여)}</td>
       <td class="num accent">${e.인상률 ? e.인상률.toFixed(1)+'%' : '—'}</td>
-      <td class="num green">${e.인상후연봉 ? fmt(e.인상후연봉) : '—'}</td>
-      <td class="num">${e.인상후월급여 ? fmt(e.인상후월급여) : '—'}</td>
-      <td>
-        <button class="btn danger" style="height:26px; padding:0 8px; font-size:11px;"
-          onclick="confirmAction('deleteOne', {idx:${e._idx}, 이름:'${e.이름}'})">삭제</button>
-      </td>
+      <td class="num green">${e.인상후연봉 ? fmtComma(e.인상후연봉) : '—'}</td>
+      <td class="num">${e.인상후월급여 ? fmtComma(e.인상후월급여) : '—'}</td>
     </tr>
   `).join('');
 }
@@ -1162,11 +1179,66 @@ function loadLocal() {
 // 숫자 포맷
 // ══════════════════════════════════════════
 function fmt(v)  { return Math.round(v||0).toLocaleString('ko-KR'); }
+function fmtComma(v) {
+  // #,### 형식 (소수점 없이 천단위 콤마)
+  if (!v && v !== 0) return '—';
+  return Math.round(v).toLocaleString('ko-KR');
+}
 function fmtB(v) {
   const n = Math.abs(v||0);
   if (n >= 1e8) return (v/1e8).toFixed(1)+'억';
   if (n >= 1e4) return Math.round(v/1e4).toLocaleString()+'만';
   return fmt(v);
+}
+
+// ══════════════════════════════════════════
+// 날짜 포맷 (입력값 → YYYY-MM-DD)
+// ══════════════════════════════════════════
+function fmtDate(v) {
+  if (!v) return '—';
+  const s = String(v).trim();
+
+  // 이미 YYYY-MM-DD 형식
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+
+  // YYYYMMDD (8자리 숫자)
+  if (/^\d{8}$/.test(s)) {
+    return `${s.slice(0,4)}-${s.slice(4,6)}-${s.slice(6,8)}`;
+  }
+
+  // 엑셀 시리얼 넘버 (숫자)
+  const num = Number(s);
+  if (!isNaN(num) && num > 40000 && num < 60000) {
+    const date = new Date(Math.round((num - 25569) * 86400 * 1000));
+    const y = date.getUTCFullYear();
+    const m = String(date.getUTCMonth()+1).padStart(2,'0');
+    const d = String(date.getUTCDate()).padStart(2,'0');
+    return `${y}-${m}-${d}`;
+  }
+
+  // YYYY.MM.DD 또는 YYYY/MM/DD
+  const dotSlash = s.match(/^(\d{4})[./](\d{1,2})[./](\d{1,2})$/);
+  if (dotSlash) {
+    return `${dotSlash[1]}-${dotSlash[2].padStart(2,'0')}-${dotSlash[3].padStart(2,'0')}`;
+  }
+
+  // YY.MM.DD 또는 YY/MM/DD
+  const short = s.match(/^(\d{2})[./](\d{1,2})[./](\d{1,2})$/);
+  if (short) {
+    const year = parseInt(short[1]) >= 50 ? '19'+short[1] : '20'+short[1];
+    return `${year}-${short[2].padStart(2,'0')}-${short[3].padStart(2,'0')}`;
+  }
+
+  // 그 외 Date 파싱 시도
+  const d = new Date(s);
+  if (!isNaN(d.getTime())) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth()+1).padStart(2,'0');
+    const dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+
+  return s; // 파싱 불가 시 원본 반환
 }
 
 // ══════════════════════════════════════════
