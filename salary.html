@@ -4,39 +4,30 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>연봉 인상 시뮬레이터</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     :root {
-      --bg: #f7f7f5;
+      --bg: #f4f4f1;
       --surface: #ffffff;
-      --surface2: #f2f2ef;
-      --border: rgba(0,0,0,0.10);
-      --border2: rgba(0,0,0,0.18);
+      --surface2: #f0f0ed;
+      --surface3: #e8e8e4;
+      --border: rgba(0,0,0,0.08);
+      --border2: rgba(0,0,0,0.15);
       --text: #1a1a18;
-      --text2: #6b6b67;
-      --text3: #9e9e9a;
+      --text2: #5c5c58;
+      --text3: #9a9a96;
       --accent: #1a56db;
       --accent-bg: #eff4ff;
       --accent-text: #1a56db;
+      --green: #0f7b4e;
+      --green-bg: #ecfdf5;
+      --red: #c0392b;
+      --red-bg: #fef2f2;
       --radius: 10px;
       --radius-sm: 6px;
-    }
-
-    @media (prefers-color-scheme: dark) {
-      :root {
-        --bg: #161614;
-        --surface: #1f1f1d;
-        --surface2: #2a2a27;
-        --border: rgba(255,255,255,0.09);
-        --border2: rgba(255,255,255,0.16);
-        --text: #f0f0ec;
-        --text2: #9a9a96;
-        --text3: #636360;
-        --accent: #5b8ef5;
-        --accent-bg: #1a2340;
-        --accent-text: #7aaaf8;
-      }
+      --radius-xs: 4px;
     }
 
     body {
@@ -44,56 +35,211 @@
       background: var(--bg);
       color: var(--text);
       min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2rem 1rem 4rem;
+      font-size: 14px;
     }
 
-    .app-shell { width: 100%; max-width: 560px; }
+    /* ── 상단 헤더 ── */
+    .top-bar {
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--border2);
+      padding: 0 24px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      height: 52px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
 
-    /* 뒤로가기 */
     .back-link {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       font-size: 13px;
-      color: var(--text2);
+      color: var(--text3);
       text-decoration: none;
-      margin-bottom: 1.5rem;
       transition: color 0.12s;
     }
     .back-link:hover { color: var(--accent); }
 
-    header { margin-bottom: 1.75rem; }
-    header h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.3px; }
-    header p  { font-size: 14px; color: var(--text2); margin-top: 4px; }
+    .top-bar-divider { color: var(--text3); font-size: 16px; }
+    .top-bar-title { font-size: 15px; font-weight: 600; letter-spacing: -0.2px; }
 
+    /* ── 탭 ── */
+    .tab-bar {
+      background: var(--surface);
+      border-bottom: 0.5px solid var(--border2);
+      padding: 0 24px;
+      display: flex;
+      gap: 0;
+    }
+
+    .tab-btn {
+      padding: 12px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      color: var(--text3);
+      border: none;
+      background: none;
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -0.5px;
+      transition: color 0.12s;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .tab-btn.active {
+      color: var(--accent);
+      border-bottom-color: var(--accent);
+    }
+
+    .tab-btn:hover:not(.active) { color: var(--text); }
+
+    /* ── 탭 패널 ── */
+    .tab-panel { display: none; padding: 24px; max-width: 1400px; margin: 0 auto; }
+    .tab-panel.active { display: block; }
+
+    /* ── 섹션 카드 ── */
     .card {
       background: var(--surface);
       border: 0.5px solid var(--border);
       border-radius: var(--radius);
-      padding: 1.25rem 1.5rem;
-      margin-bottom: 12px;
+      padding: 20px 24px;
+      margin-bottom: 16px;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
     }
 
     .card-title {
-      font-size: 11px;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.7px;
-      color: var(--text3);
-      margin-bottom: 1rem;
-    }
-
-    .input-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-
-    .input-group label {
-      display: block;
       font-size: 13px;
-      color: var(--text2);
-      margin-bottom: 6px;
+      font-weight: 600;
+      color: var(--text);
     }
+
+    .card-subtitle {
+      font-size: 12px;
+      color: var(--text3);
+      margin-top: 2px;
+    }
+
+    /* ── 버튼 ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 0 12px;
+      height: 32px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+      color: var(--text2);
+      font-size: 12px;
+      font-family: inherit;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.1s, color 0.1s;
+    }
+    .btn:hover { background: var(--surface2); color: var(--text); }
+    .btn:active { transform: scale(0.98); }
+    .btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+    .btn.primary:hover { opacity: 0.88; background: var(--accent); }
+    .btn.success { background: var(--green); color: #fff; border-color: transparent; }
+    .btn.success:hover { opacity: 0.88; background: var(--green); }
+    .btn.danger  { background: var(--red-bg); color: var(--red); border-color: transparent; }
+
+    .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* ── 업로드 존 ── */
+    .upload-zone {
+      border: 1.5px dashed var(--border2);
+      border-radius: var(--radius);
+      padding: 32px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--accent);
+      background: var(--accent-bg);
+    }
+    .upload-zone p { font-size: 13px; color: var(--text2); margin-top: 8px; }
+    .upload-zone small { font-size: 12px; color: var(--text3); }
+
+    /* ── 테이블 ── */
+    .table-wrap {
+      overflow-x: auto;
+      border-radius: var(--radius-sm);
+      border: 0.5px solid var(--border);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    thead th {
+      background: var(--surface2);
+      padding: 9px 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 11px;
+      color: var(--text2);
+      border-bottom: 0.5px solid var(--border2);
+      position: sticky;
+      top: 0;
+    }
+
+    tbody tr { border-bottom: 0.5px solid var(--border); }
+    tbody tr:last-child { border-bottom: none; }
+    tbody tr:hover { background: var(--surface2); }
+    tbody td { padding: 8px 12px; color: var(--text); }
+    tbody td.num { text-align: right; font-variant-numeric: tabular-nums; }
+    tbody td.accent { color: var(--accent); font-weight: 600; }
+    tbody td.green  { color: var(--green);  font-weight: 600; }
+
+    .empty-row td {
+      text-align: center;
+      padding: 40px;
+      color: var(--text3);
+      font-size: 13px;
+    }
+
+    /* ── 요약 메트릭 ── */
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .metric {
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
+      padding: 14px 16px;
+    }
+    .metric.accent-box { background: var(--accent-bg); }
+    .metric.green-box  { background: var(--green-bg); }
+
+    .metric .m-label { font-size: 11px; color: var(--text3); margin-bottom: 5px; }
+    .metric.accent-box .m-label { color: var(--accent); opacity: 0.7; }
+    .metric.green-box  .m-label { color: var(--green);  opacity: 0.7; }
+    .metric .m-value { font-size: 20px; font-weight: 700; letter-spacing: -0.5px; color: var(--text); }
+    .metric.accent-box .m-value { color: var(--accent); }
+    .metric.green-box  .m-value { color: var(--green); }
+    .metric .m-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
+
+    /* ── 폼 요소 ── */
+    .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; }
+    .form-group label { display: block; font-size: 12px; color: var(--text2); margin-bottom: 5px; font-weight: 500; }
 
     .input-addon {
       display: flex;
@@ -104,281 +250,935 @@
       background: var(--surface);
       transition: border-color 0.15s;
     }
-
-    .input-addon:focus-within {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(26,86,219,0.10);
-    }
-
+    .input-addon:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(26,86,219,0.08); }
     .input-addon .unit {
       padding: 0 10px;
-      font-size: 13px;
+      font-size: 12px;
       color: var(--text3);
       background: var(--surface2);
       border-left: 0.5px solid var(--border);
-      height: 38px;
+      height: 34px;
       display: flex;
       align-items: center;
       white-space: nowrap;
-      flex-shrink: 0;
+    }
+    .input-addon input, .input-addon select {
+      border: none; outline: none; background: transparent;
+      padding: 0 10px; height: 34px; font-size: 13px;
+      color: var(--text); width: 100%; font-family: inherit;
     }
 
-    .input-addon input {
-      border: none;
-      outline: none;
-      background: transparent;
-      padding: 0 10px;
-      height: 38px;
-      font-size: 14px;
-      color: var(--text);
-      width: 100%;
-      font-family: inherit;
-    }
-
-    .input-addon input::placeholder { color: var(--text3); }
-
-    .result-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
-
-    .metric {
-      background: var(--surface2);
-      border-radius: var(--radius-sm);
-      padding: 12px 14px;
-    }
-
-    .metric.accent { background: var(--accent-bg); }
-
-    .metric .m-label { font-size: 11px; color: var(--text3); margin-bottom: 6px; }
-    .metric.accent .m-label { color: var(--accent-text); opacity: 0.7; }
-    .metric .m-value { font-size: 17px; font-weight: 600; color: var(--text); letter-spacing: -0.3px; }
-    .metric.accent .m-value { color: var(--accent-text); }
-    .metric .m-sub { font-size: 11px; color: var(--text3); margin-top: 3px; }
-    .metric.accent .m-sub { color: var(--accent-text); opacity: 0.6; }
-
-    .btn-row { display: flex; gap: 8px; margin-top: 1rem; }
-
-    button {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 0 14px;
-      height: 36px;
+    select {
       border: 0.5px solid var(--border2);
       border-radius: var(--radius-sm);
-      background: transparent;
+      padding: 0 10px;
+      height: 34px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      font-family: inherit;
+      cursor: pointer;
+      width: 100%;
+    }
+    select:focus { outline: none; border-color: var(--accent); }
+
+    input[type="number"] {
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      padding: 0 10px;
+      height: 34px;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--surface);
+      font-family: inherit;
+      width: 100%;
+    }
+    input[type="number"]:focus { outline: none; border-color: var(--accent); }
+
+    /* ── 구분선 ── */
+    hr { border: none; border-top: 0.5px solid var(--border); margin: 20px 0; }
+
+    /* ── 뱃지 ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 2px 8px;
+      border-radius: 99px;
+      font-size: 11px;
+      font-weight: 500;
+    }
+    .badge.blue   { background: var(--accent-bg); color: var(--accent); }
+    .badge.green  { background: var(--green-bg);  color: var(--green); }
+    .badge.gray   { background: var(--surface2);  color: var(--text3); }
+
+    /* ── 탭2 시뮬레이션 ── */
+    .sim-mode-toggle {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .mode-btn {
+      flex: 1;
+      padding: 10px;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
       color: var(--text2);
       font-size: 13px;
       font-family: inherit;
       cursor: pointer;
-      transition: background 0.12s;
+      text-align: center;
+      transition: all 0.12s;
+    }
+    .mode-btn.active {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent);
+      font-weight: 600;
     }
 
-    button:hover { background: var(--surface2); color: var(--text); }
-    button:active { transform: scale(0.98); }
-    button.primary { background: var(--accent); color: #fff; border-color: transparent; }
-    button.primary:hover { opacity: 0.88; }
+    .matrix-table th, .matrix-table td {
+      min-width: 80px;
+      text-align: center;
+    }
+    .matrix-table input {
+      width: 70px;
+      text-align: center;
+      border: 0.5px solid var(--border2);
+      border-radius: var(--radius-xs);
+      padding: 4px 6px;
+      font-size: 12px;
+      font-family: inherit;
+      background: var(--surface);
+      color: var(--text);
+    }
+    .matrix-table input:focus { outline: none; border-color: var(--accent); }
 
-    .history-header {
+    .result-bar {
       display: flex;
-      justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.75rem;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: var(--radius-sm);
+      margin-bottom: 8px;
+      font-size: 13px;
     }
+    .result-bar.ok   { background: var(--green-bg); color: var(--green); }
+    .result-bar.over { background: var(--red-bg);   color: var(--red); }
+    .result-bar.under{ background: var(--accent-bg);color: var(--accent); }
 
-    .history-empty { font-size: 13px; color: var(--text3); text-align: center; padding: 1.5rem 0; }
-
-    .history-item {
+    /* ── 탭3 필터 칩 ── */
+    .filter-row {
       display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 10px 0;
-      border-bottom: 0.5px solid var(--border);
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 16px;
     }
 
-    .history-item:last-child { border-bottom: none; }
-    .h-date    { font-size: 12px; color: var(--text3); }
-    .h-formula { font-size: 13px; color: var(--text2); margin-top: 2px; }
-    .h-result  { font-size: 15px; font-weight: 600; color: var(--text); }
-    .h-delta   { font-size: 12px; color: var(--accent-text); margin-top: 2px; text-align: right; }
+    .filter-chip {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 10px;
+      border: 0.5px solid var(--border2);
+      border-radius: 99px;
+      font-size: 12px;
+      color: var(--text2);
+      background: var(--surface);
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .filter-chip.active {
+      background: var(--accent-bg);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
 
+    .section-divider {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.7px;
+      color: var(--text3);
+      margin-bottom: 10px;
+    }
+
+    /* ── 알림 ── */
     .notice {
       display: flex;
       align-items: flex-start;
-      gap: 7px;
+      gap: 8px;
       font-size: 12px;
       color: var(--text3);
-      margin-top: 0.75rem;
+      padding: 10px 14px;
+      background: var(--surface2);
+      border-radius: var(--radius-sm);
       line-height: 1.6;
     }
 
-    @media (max-width: 420px) {
-      .result-grid { grid-template-columns: 1fr 1fr; }
-      .metric.accent { grid-column: 1 / -1; }
-      .input-grid { grid-template-columns: 1fr; }
+    @media (max-width: 640px) {
+      .tab-panel { padding: 16px; }
+      .top-bar { padding: 0 16px; }
+      .tab-bar { padding: 0 16px; overflow-x: auto; }
     }
   </style>
 </head>
 <body>
-  <div class="app-shell">
 
-    <a class="back-link" href="index.html">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-      HR 시뮬레이터 홈
-    </a>
+<!-- 상단 헤더 -->
+<div class="top-bar">
+  <a class="back-link" href="index.html">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    홈
+  </a>
+  <span class="top-bar-divider">/</span>
+  <span class="top-bar-title">연봉 인상 시뮬레이터</span>
+</div>
 
-    <header>
-      <h1>연봉 인상 시뮬레이터</h1>
-      <p>현재 연봉과 인상률을 입력하면 결과를 즉시 계산합니다.</p>
-    </header>
+<!-- 탭 바 -->
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('tab1')">① 연봉 인상 대상자</button>
+  <button class="tab-btn" onclick="switchTab('tab2')">② 연봉 인상 시뮬레이션</button>
+  <button class="tab-btn" onclick="switchTab('tab3')">③ 연봉 인상 결과</button>
+</div>
 
-    <!-- 입력 -->
-    <div class="card">
-      <div class="card-title">입력</div>
-      <div class="input-grid">
-        <div class="input-group">
-          <label for="salary">현재 연봉</label>
-          <div class="input-addon">
-            <input type="number" id="salary" placeholder="60000000" min="0" step="1000000" />
-            <span class="unit">원</span>
-          </div>
-        </div>
-        <div class="input-group">
-          <label for="rate">인상률</label>
-          <div class="input-addon">
-            <input type="number" id="rate" placeholder="5.0" min="0" max="100" step="0.1" />
-            <span class="unit">%</span>
-          </div>
-        </div>
+<!-- ══════════════════════════════════════════
+     탭1: 연봉 인상 대상자
+══════════════════════════════════════════ -->
+<div id="tab1" class="tab-panel active">
+
+  <!-- 요약 메트릭 -->
+  <div class="metric-grid" id="t1-metrics">
+    <div class="metric"><div class="m-label">총 대상자</div><div class="m-value" id="m-total">0</div><div class="m-sub">명</div></div>
+    <div class="metric accent-box"><div class="m-label">인상 전 연봉 총액</div><div class="m-value" id="m-before">—</div><div class="m-sub">원</div></div>
+    <div class="metric green-box"><div class="m-label">인상 후 연봉 총액</div><div class="m-value" id="m-after">—</div><div class="m-sub">원</div></div>
+    <div class="metric"><div class="m-label">총 인상 재원</div><div class="m-value" id="m-budget">—</div><div class="m-sub">원</div></div>
+    <div class="metric"><div class="m-label">평균 인상률</div><div class="m-value" id="m-avgrate">—</div><div class="m-sub">%</div></div>
+  </div>
+
+  <!-- 업로드 & 버튼 -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">대상자 명단</div>
+        <div class="card-subtitle">엑셀 파일을 업로드하거나 양식을 다운로드하세요</div>
       </div>
-    </div>
-
-    <!-- 결과 -->
-    <div class="card">
-      <div class="card-title">결과</div>
-      <div class="result-grid">
-        <div class="metric">
-          <div class="m-label">현재 연봉</div>
-          <div class="m-value" id="r-current">—</div>
-          <div class="m-sub">연 기준</div>
-        </div>
-        <div class="metric">
-          <div class="m-label">인상액</div>
-          <div class="m-value" id="r-delta">—</div>
-          <div class="m-sub">월 <span id="r-delta-m">—</span></div>
-        </div>
-        <div class="metric accent">
-          <div class="m-label">인상 후 연봉</div>
-          <div class="m-value" id="r-new">—</div>
-          <div class="m-sub">월 <span id="r-new-m">—</span></div>
-        </div>
-      </div>
-
       <div class="btn-row">
-        <button class="primary" onclick="saveRecord()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
-          이력 저장
+        <button class="btn" onclick="downloadTemplate()">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          양식 다운로드
         </button>
-        <button onclick="resetInputs()">
-          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-3.55"/></svg>
+        <button class="btn success" onclick="downloadData()" id="btn-download-data" style="display:none">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          결과 다운로드
+        </button>
+        <button class="btn danger" onclick="clearData()" id="btn-clear" style="display:none">
           초기화
         </button>
       </div>
-
-      <div class="notice">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-        모든 데이터는 이 브라우저의 로컬 저장소에만 저장되며, 외부로 전송되지 않습니다.
-      </div>
     </div>
 
-    <!-- 이력 -->
-    <div class="card">
-      <div class="history-header">
-        <div class="card-title" style="margin-bottom:0;">시뮬레이션 이력</div>
-        <button onclick="clearHistory()" style="height:28px; font-size:12px; padding:0 10px; color:var(--text3);">
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
-          전체 삭제
-        </button>
-      </div>
-      <div id="history-list"></div>
+    <!-- 업로드 존 -->
+    <div class="upload-zone" id="upload-zone"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--text3)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      <p>클릭하거나 엑셀 파일을 드래그하여 업로드</p>
+      <small>.xlsx / .xls 형식 지원</small>
     </div>
-
+    <input type="file" id="file-input" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event)" />
   </div>
 
-  <script>
-    const fmt  = v => Math.round(v).toLocaleString('ko-KR');
-    const fmtM = v => Math.round(v / 12).toLocaleString('ko-KR');
+  <!-- 테이블 -->
+  <div class="card" id="table-card" style="display:none">
+    <div class="card-header">
+      <div class="card-title" id="table-count-label">대상자 0명</div>
+      <div class="btn-row">
+        <input type="text" id="search-input" placeholder="검색 (이름, 부서, 직책...)"
+               style="height:32px; border:0.5px solid var(--border2); border-radius:var(--radius-sm); padding:0 10px; font-size:12px; font-family:inherit; width:200px; background:var(--surface); color:var(--text);"
+               oninput="renderTable()" />
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table id="main-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>사번</th><th>이름</th><th>직원유형</th><th>인사상태</th>
+            <th>직책</th><th>직급</th><th>입사일</th>
+            <th>부서1</th><th>부서2</th><th>부서3</th><th>부서4</th>
+            <th>총 경력</th><th>평가등급</th>
+            <th>인상 전 연봉</th><th>인상 전 월급여</th>
+            <th>인상률</th>
+            <th>인상 후 연봉</th><th>인상 후 월급여</th>
+          </tr>
+        </thead>
+        <tbody id="main-tbody"></tbody>
+      </table>
+    </div>
+  </div>
 
-    function calc() {
-      const s = parseFloat(document.getElementById('salary').value);
-      const r = parseFloat(document.getElementById('rate').value);
-      if (!s || isNaN(s) || !r || isNaN(r) || s <= 0 || r <= 0) {
-        ['r-current','r-delta','r-new'].forEach(id => document.getElementById(id).textContent = '—');
-        document.getElementById('r-delta-m').textContent = '—';
-        document.getElementById('r-new-m').textContent = '—';
-        return;
-      }
-      const newSal = s * (1 + r / 100);
-      const delta  = newSal - s;
-      document.getElementById('r-current').textContent = fmt(s) + '원';
-      document.getElementById('r-delta').textContent   = '+' + fmt(delta) + '원';
-      document.getElementById('r-delta-m').textContent = '+' + fmtM(delta) + '원';
-      document.getElementById('r-new').textContent     = fmt(newSal) + '원';
-      document.getElementById('r-new-m').textContent   = fmtM(newSal) + '원';
-    }
+  <div class="notice">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+    모든 데이터는 이 브라우저의 로컬 저장소에만 저장되며 외부로 전송되지 않습니다.
+  </div>
+</div>
 
-    function resetInputs() {
-      document.getElementById('salary').value = '';
-      document.getElementById('rate').value   = '';
-      calc();
-    }
 
-    function saveRecord() {
-      const s = parseFloat(document.getElementById('salary').value);
-      const r = parseFloat(document.getElementById('rate').value);
-      if (!s || isNaN(s) || !r || isNaN(r) || s <= 0 || r <= 0) {
-        alert('연봉과 인상률을 먼저 입력해주세요.');
-        return;
-      }
-      const newSal = s * (1 + r / 100);
-      const delta  = newSal - s;
-      const records = JSON.parse(localStorage.getItem('salary_sim_v1') || '[]');
-      records.unshift({ s, r, newSal, delta, ts: Date.now() });
-      if (records.length > 30) records.pop();
-      localStorage.setItem('salary_sim_v1', JSON.stringify(records));
-      renderHistory();
-    }
+<!-- ══════════════════════════════════════════
+     탭2: 연봉 인상 시뮬레이션
+══════════════════════════════════════════ -->
+<div id="tab2" class="tab-panel">
 
-    function clearHistory() {
-      if (!confirm('이력을 모두 삭제할까요?')) return;
-      localStorage.removeItem('salary_sim_v1');
-      renderHistory();
-    }
+  <!-- 총 인상 재원 -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">총 인상 재원 설정</div>
+        <div class="card-subtitle">인당 인상액 또는 총 인상률 기준으로 재원을 계산합니다</div>
+      </div>
+    </div>
 
-    function renderHistory() {
-      const el = document.getElementById('history-list');
-      const records = JSON.parse(localStorage.getItem('salary_sim_v1') || '[]');
-      if (!records.length) {
-        el.innerHTML = '<div class="history-empty">저장된 이력이 없습니다.</div>';
-        return;
-      }
-      el.innerHTML = records.map(rec => {
-        const d = new Date(rec.ts);
-        const dateStr = `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
-        return `<div class="history-item">
-          <div>
-            <div class="h-date">${dateStr}</div>
-            <div class="h-formula">${fmt(rec.s)}원 × ${rec.r}% 인상</div>
-          </div>
-          <div>
-            <div class="h-result">${fmt(rec.newSal)}원</div>
-            <div class="h-delta">+${fmt(rec.delta)}원</div>
-          </div>
-        </div>`;
+    <div class="sim-mode-toggle">
+      <button class="mode-btn active" onclick="setBudgetMode('perPerson')" id="mode-perPerson">인당 인상액 기준</button>
+      <button class="mode-btn" onclick="setBudgetMode('totalRate')" id="mode-totalRate">총 인상률 기준</button>
+    </div>
+
+    <div class="form-grid" id="budget-form">
+      <div class="form-group" id="fg-perPerson">
+        <label>인당 평균 인상액 (원)</label>
+        <input type="number" id="input-perPerson" placeholder="예: 3000000" step="100000" oninput="calcBudget()" />
+      </div>
+      <div class="form-group" id="fg-totalRate" style="display:none">
+        <label>전체 인상률 (%)</label>
+        <input type="number" id="input-totalRate" placeholder="예: 5" step="0.1" oninput="calcBudget()" />
+      </div>
+    </div>
+
+    <div class="metric-grid" style="margin-top:16px">
+      <div class="metric"><div class="m-label">인상 전 연봉 총액</div><div class="m-value" id="s-before">—</div><div class="m-sub">원</div></div>
+      <div class="metric accent-box"><div class="m-label">총 인상 재원</div><div class="m-value" id="s-budget">—</div><div class="m-sub">원</div></div>
+      <div class="metric"><div class="m-label">실질 인상률</div><div class="m-value" id="s-rate">—</div><div class="m-sub">%</div></div>
+      <div class="metric"><div class="m-label">인상 후 연봉 총액</div><div class="m-value" id="s-after">—</div><div class="m-sub">원</div></div>
+    </div>
+  </div>
+
+  <!-- 조건별 인상률 시뮬레이션 -->
+  <div class="card">
+    <div class="card-header">
+      <div>
+        <div class="card-title">조건별 인상률 시뮬레이션</div>
+        <div class="card-subtitle">최대 2가지 조건을 선택하면 매트릭스 인상률을 계산합니다</div>
+      </div>
+      <button class="btn primary" onclick="runSimulation()">시뮬레이션 실행</button>
+    </div>
+
+    <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:16px;">
+      <div class="form-group">
+        <label>조건 1 (필수)</label>
+        <select id="cond1" onchange="updateCondOptions()">
+          <option value="">— 선택 —</option>
+          <option value="직원유형">직원유형</option>
+          <option value="직책">직책</option>
+          <option value="직급">직급</option>
+          <option value="부서1">부서1</option>
+          <option value="부서2">부서2</option>
+          <option value="평가등급">평가등급</option>
+          <option value="인사상태">인사상태</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>조건 2 (선택)</label>
+        <select id="cond2" onchange="updateCondOptions()">
+          <option value="">— 없음 (단일 조건) —</option>
+          <option value="직원유형">직원유형</option>
+          <option value="직책">직책</option>
+          <option value="직급">직급</option>
+          <option value="부서1">부서1</option>
+          <option value="부서2">부서2</option>
+          <option value="평가등급">평가등급</option>
+          <option value="인사상태">인사상태</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- 매트릭스 입력 테이블 -->
+    <div id="matrix-wrap" style="display:none">
+      <div class="section-divider" style="margin-bottom:12px">인상률 입력 (%) — 총 재원 내에서 자동 검증됩니다</div>
+      <div class="table-wrap">
+        <table class="matrix-table" id="matrix-table">
+          <thead><tr id="matrix-head"></tr></thead>
+          <tbody id="matrix-body"></tbody>
+        </table>
+      </div>
+      <div id="matrix-result" style="margin-top:12px"></div>
+    </div>
+
+    <div id="sim-empty" style="text-align:center; padding:32px; color:var(--text3); font-size:13px;">
+      대상자 데이터를 먼저 업로드하고 조건을 선택하세요.
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════
+     탭3: 연봉 인상 결과
+══════════════════════════════════════════ -->
+<div id="tab3" class="tab-panel">
+
+  <!-- 전체 요약 -->
+  <div class="card">
+    <div class="card-title" style="margin-bottom:16px">전체 인상 요약</div>
+    <div class="metric-grid" id="t3-metrics">
+      <div class="metric"><div class="m-label">총 대상자</div><div class="m-value" id="t3-total">—</div><div class="m-sub">명</div></div>
+      <div class="metric accent-box"><div class="m-label">인상 전 연봉 총액</div><div class="m-value" id="t3-before">—</div><div class="m-sub">원</div></div>
+      <div class="metric green-box"><div class="m-label">인상 후 연봉 총액</div><div class="m-value" id="t3-after">—</div><div class="m-sub">원</div></div>
+      <div class="metric"><div class="m-label">총 인상 재원</div><div class="m-value" id="t3-budget">—</div><div class="m-sub">원</div></div>
+      <div class="metric"><div class="m-label">평균 인상률</div><div class="m-value" id="t3-avgrate">—</div><div class="m-sub">%</div></div>
+      <div class="metric"><div class="m-label">최고 인상률</div><div class="m-value" id="t3-maxrate">—</div><div class="m-sub">%</div></div>
+    </div>
+  </div>
+
+  <!-- 퀵 필터 -->
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">결과 조회</div>
+      <button class="btn" onclick="resetFilter()">필터 초기화</button>
+    </div>
+
+    <div id="filter-chips" class="filter-row"></div>
+
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>사번</th><th>이름</th><th>직책</th><th>직급</th>
+            <th>부서1</th><th>평가등급</th>
+            <th>인상 전 연봉</th><th>인상률</th><th>인상액</th><th>인상 후 연봉</th><th>인상 후 월급여</th>
+          </tr>
+        </thead>
+        <tbody id="result-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 조건별 요약 -->
+  <div class="card" id="group-summary-card" style="display:none">
+    <div class="card-title" style="margin-bottom:16px" id="group-summary-title">조건별 요약</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="group-summary-head"></tr></thead>
+        <tbody id="group-summary-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// 전역 상태
+// ══════════════════════════════════════════
+let employees = [];        // 원본 데이터
+let budgetMode = 'perPerson';
+let totalBudget = 0;
+let simConditions = { cond1: '', cond2: '' };
+let activeFilters = {};
+
+const COLS = ['사번','이름','직원유형','인사상태','직책','직급','입사일','부서1','부서2','부서3','부서4','총 경력','평가등급','인상 전 연봉','인상 전 월급여'];
+
+// ══════════════════════════════════════════
+// 탭 전환
+// ══════════════════════════════════════════
+function switchTab(id) {
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  const idx = ['tab1','tab2','tab3'].indexOf(id);
+  document.querySelectorAll('.tab-btn')[idx].classList.add('active');
+  if (id === 'tab2') refreshTab2();
+  if (id === 'tab3') refreshTab3();
+}
+
+// ══════════════════════════════════════════
+// 파일 업로드
+// ══════════════════════════════════════════
+function onDragOver(e)  { e.preventDefault(); document.getElementById('upload-zone').classList.add('drag-over'); }
+function onDragLeave(e) { document.getElementById('upload-zone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+function onFileSelect(e) { if (e.target.files[0]) processFile(e.target.files[0]); }
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const wb = XLSX.read(e.target.result, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+    if (!rows.length) { alert('데이터가 없습니다.'); return; }
+    employees = rows.map(r => ({
+      사번: String(r['사번'] || ''),
+      이름: String(r['이름'] || ''),
+      직원유형: String(r['직원유형'] || ''),
+      인사상태: String(r['인사상태'] || ''),
+      직책: String(r['직책'] || ''),
+      직급: String(r['직급'] || ''),
+      입사일: String(r['입사일'] || ''),
+      부서1: String(r['부서1'] || ''),
+      부서2: String(r['부서2'] || ''),
+      부서3: String(r['부서3'] || ''),
+      부서4: String(r['부서4'] || ''),
+      총경력: String(r['총 경력'] || ''),
+      평가등급: String(r['평가등급'] || ''),
+      인상전연봉: parseNum(r['인상 전 연봉']),
+      인상전월급여: parseNum(r['인상 전 월급여']),
+      인상률: 0,
+      인상후연봉: 0,
+      인상후월급여: 0,
+    }));
+    employees.forEach(emp => {
+      if (!emp.인상전월급여 && emp.인상전연봉) emp.인상전월급여 = Math.round(emp.인상전연봉 / 12);
+    });
+    saveLocal();
+    onDataLoaded();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseNum(v) {
+  if (typeof v === 'number') return v;
+  return parseFloat(String(v).replace(/,/g,'')) || 0;
+}
+
+function onDataLoaded() {
+  updateT1Metrics();
+  renderTable();
+  document.getElementById('table-card').style.display = 'block';
+  document.getElementById('btn-download-data').style.display = 'inline-flex';
+  document.getElementById('btn-clear').style.display = 'inline-flex';
+}
+
+// ══════════════════════════════════════════
+// 탭1: 테이블 렌더링
+// ══════════════════════════════════════════
+function renderTable() {
+  const q = (document.getElementById('search-input').value || '').toLowerCase();
+  const filtered = employees.filter(e =>
+    !q ||
+    e.이름.toLowerCase().includes(q) ||
+    e.사번.includes(q) ||
+    e.직책.toLowerCase().includes(q) ||
+    e.직급.toLowerCase().includes(q) ||
+    e.부서1.toLowerCase().includes(q) ||
+    e.부서2.toLowerCase().includes(q) ||
+    e.평가등급.toLowerCase().includes(q)
+  );
+  const tbody = document.getElementById('main-tbody');
+  document.getElementById('table-count-label').textContent = `대상자 ${employees.length}명 (표시 ${filtered.length}명)`;
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="19">데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map((e, i) => `
+    <tr>
+      <td>${i+1}</td>
+      <td>${e.사번}</td><td>${e.이름}</td><td>${e.직원유형}</td><td>${e.인사상태}</td>
+      <td>${e.직책}</td><td>${e.직급}</td><td>${e.입사일}</td>
+      <td>${e.부서1}</td><td>${e.부서2}</td><td>${e.부서3}</td><td>${e.부서4}</td>
+      <td>${e.총경력}</td><td>${e.평가등급}</td>
+      <td class="num">${fmt(e.인상전연봉)}</td>
+      <td class="num">${fmt(e.인상전월급여)}</td>
+      <td class="num accent">${e.인상률 ? e.인상률.toFixed(1)+'%' : '—'}</td>
+      <td class="num green">${e.인상후연봉 ? fmt(e.인상후연봉) : '—'}</td>
+      <td class="num">${e.인상후월급여 ? fmt(e.인상후월급여) : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function updateT1Metrics() {
+  const total = employees.length;
+  const before = employees.reduce((s,e) => s + e.인상전연봉, 0);
+  const after  = employees.reduce((s,e) => s + (e.인상후연봉 || e.인상전연봉), 0);
+  const budget = after - before;
+  const rates  = employees.filter(e => e.인상률 > 0).map(e => e.인상률);
+  const avgR   = rates.length ? (rates.reduce((a,b)=>a+b,0)/rates.length) : 0;
+  document.getElementById('m-total').textContent  = total;
+  document.getElementById('m-before').textContent = fmtB(before);
+  document.getElementById('m-after').textContent  = fmtB(after);
+  document.getElementById('m-budget').textContent = budget ? fmtB(budget) : '—';
+  document.getElementById('m-avgrate').textContent = avgR ? avgR.toFixed(1) : '—';
+}
+
+// ══════════════════════════════════════════
+// 탭2: 시뮬레이션
+// ══════════════════════════════════════════
+function setBudgetMode(mode) {
+  budgetMode = mode;
+  document.getElementById('mode-perPerson').classList.toggle('active', mode === 'perPerson');
+  document.getElementById('mode-totalRate').classList.toggle('active', mode === 'totalRate');
+  document.getElementById('fg-perPerson').style.display = mode === 'perPerson' ? '' : 'none';
+  document.getElementById('fg-totalRate').style.display = mode === 'totalRate' ? '' : 'none';
+  calcBudget();
+}
+
+function calcBudget() {
+  const totalBefore = employees.reduce((s,e) => s+e.인상전연봉, 0);
+  document.getElementById('s-before').textContent = totalBefore ? fmtB(totalBefore) : '—';
+  if (!totalBefore) return;
+
+  let budget = 0;
+  if (budgetMode === 'perPerson') {
+    const v = parseFloat(document.getElementById('input-perPerson').value) || 0;
+    budget = v * employees.length;
+  } else {
+    const r = parseFloat(document.getElementById('input-totalRate').value) || 0;
+    budget = totalBefore * r / 100;
+  }
+  totalBudget = budget;
+  const rate = totalBefore ? (budget / totalBefore * 100) : 0;
+  document.getElementById('s-budget').textContent = budget ? fmtB(budget) : '—';
+  document.getElementById('s-rate').textContent   = rate   ? rate.toFixed(2) : '—';
+  document.getElementById('s-after').textContent  = budget ? fmtB(totalBefore + budget) : '—';
+}
+
+function refreshTab2() {
+  calcBudget();
+  updateCondOptions();
+}
+
+function updateCondOptions() {
+  const c1 = document.getElementById('cond1').value;
+  const c2 = document.getElementById('cond2').value;
+  simConditions = { cond1: c1, cond2: c2 };
+  if (c1 && employees.length) buildMatrix();
+  else {
+    document.getElementById('matrix-wrap').style.display = 'none';
+    document.getElementById('sim-empty').style.display = '';
+  }
+}
+
+function getKey(emp, col) {
+  const map = {'직원유형':'직원유형','직책':'직책','직급':'직급','부서1':'부서1','부서2':'부서2','평가등급':'평가등급','인사상태':'인사상태'};
+  return emp[map[col]] || '(미지정)';
+}
+
+function buildMatrix() {
+  const { cond1, cond2 } = simConditions;
+  if (!cond1 || !employees.length) return;
+
+  const vals1 = [...new Set(employees.map(e => getKey(e, cond1)))].sort();
+  const vals2 = cond2 ? [...new Set(employees.map(e => getKey(e, cond2)))].sort() : null;
+
+  const head = document.getElementById('matrix-head');
+  const body = document.getElementById('matrix-body');
+
+  if (!vals2) {
+    // 단일 조건
+    head.innerHTML = `<th>${cond1}</th><th>인원 수</th><th>연봉 총액</th><th>인상률 (%)</th>`;
+    body.innerHTML = vals1.map(v1 => {
+      const grp = employees.filter(e => getKey(e, cond1) === v1);
+      const total = grp.reduce((s,e)=>s+e.인상전연봉,0);
+      return `<tr>
+        <td>${v1}</td>
+        <td class="num">${grp.length}명</td>
+        <td class="num">${fmt(total)}</td>
+        <td><input type="number" step="0.1" min="0" max="100" placeholder="0.0"
+             id="mrate_${encodeKey(v1)}" oninput="validateMatrix()" /></td>
+      </tr>`;
+    }).join('');
+  } else {
+    // 2x 매트릭스
+    head.innerHTML = `<th>${cond1} \\ ${cond2}</th>` + vals2.map(v => `<th>${v}</th>`).join('');
+    body.innerHTML = vals1.map(v1 => {
+      const cells = vals2.map(v2 => {
+        const grp = employees.filter(e => getKey(e,cond1)===v1 && getKey(e,cond2)===v2);
+        const tip = grp.length ? `${grp.length}명 / ${fmt(grp.reduce((s,e)=>s+e.인상전연봉,0))}원` : '0명';
+        return `<td title="${tip}"><input type="number" step="0.1" min="0" max="100" placeholder="${grp.length?'0.0':'—'}"
+               ${!grp.length ? 'disabled style="opacity:0.3"' : ''}
+               id="mrate_${encodeKey(v1)}_${encodeKey(v2)}" oninput="validateMatrix()" /></td>`;
       }).join('');
-    }
+      return `<tr><th>${v1}</th>${cells}</tr>`;
+    }).join('');
+  }
 
-    document.getElementById('salary').addEventListener('input', calc);
-    document.getElementById('rate').addEventListener('input', calc);
-    renderHistory();
-  </script>
+  document.getElementById('matrix-wrap').style.display = 'block';
+  document.getElementById('sim-empty').style.display = 'none';
+  validateMatrix();
+}
+
+function encodeKey(v) { return v.replace(/[^a-zA-Z0-9가-힣]/g,'_'); }
+
+function validateMatrix() {
+  const { cond1, cond2 } = simConditions;
+  if (!cond1 || !totalBudget) {
+    document.getElementById('matrix-result').innerHTML = '';
+    return;
+  }
+
+  const vals1 = [...new Set(employees.map(e => getKey(e, cond1)))].sort();
+  const vals2 = cond2 ? [...new Set(employees.map(e => getKey(e, cond2)))].sort() : null;
+
+  let usedBudget = 0;
+  employees.forEach(emp => {
+    const v1 = getKey(emp, cond1);
+    const v2 = cond2 ? getKey(emp, cond2) : null;
+    const inputId = v2 ? `mrate_${encodeKey(v1)}_${encodeKey(v2)}` : `mrate_${encodeKey(v1)}`;
+    const el = document.getElementById(inputId);
+    const rate = el ? (parseFloat(el.value) || 0) : 0;
+    usedBudget += emp.인상전연봉 * rate / 100;
+  });
+
+  const pct = totalBudget ? (usedBudget / totalBudget * 100) : 0;
+  const diff = usedBudget - totalBudget;
+  const el = document.getElementById('matrix-result');
+
+  if (Math.abs(diff) < 10000) {
+    el.innerHTML = `<div class="result-bar ok">✅ 총 재원과 정확히 일치합니다 — 사용: ${fmtB(usedBudget)} / 재원: ${fmtB(totalBudget)}</div>`;
+  } else if (diff > 0) {
+    el.innerHTML = `<div class="result-bar over">⚠️ 재원 초과 — ${fmtB(diff)} 초과 (${pct.toFixed(1)}% 사용)</div>`;
+  } else {
+    el.innerHTML = `<div class="result-bar under">ℹ️ 재원 미사용 — ${fmtB(Math.abs(diff))} 잔여 (${pct.toFixed(1)}% 사용)</div>`;
+  }
+}
+
+function runSimulation() {
+  if (!employees.length) { alert('대상자 데이터를 먼저 업로드해주세요.'); return; }
+  const { cond1, cond2 } = simConditions;
+  if (!cond1) { alert('조건 1을 선택해주세요.'); return; }
+
+  employees.forEach(emp => {
+    const v1 = getKey(emp, cond1);
+    const v2 = cond2 ? getKey(emp, cond2) : null;
+    const inputId = v2 ? `mrate_${encodeKey(v1)}_${encodeKey(v2)}` : `mrate_${encodeKey(v1)}`;
+    const el = document.getElementById(inputId);
+    const rate = el ? (parseFloat(el.value) || 0) : 0;
+    emp.인상률 = rate;
+    emp.인상후연봉 = Math.round(emp.인상전연봉 * (1 + rate/100));
+    emp.인상후월급여 = Math.round(emp.인상후연봉 / 12);
+  });
+
+  saveLocal();
+  updateT1Metrics();
+  renderTable();
+  alert('시뮬레이션이 적용되었습니다. 탭3에서 결과를 확인하세요.');
+  switchTab('tab3');
+}
+
+// ══════════════════════════════════════════
+// 탭3: 결과
+// ══════════════════════════════════════════
+function refreshTab3() {
+  if (!employees.length) return;
+
+  const total  = employees.length;
+  const before = employees.reduce((s,e)=>s+e.인상전연봉,0);
+  const after  = employees.reduce((s,e)=>s+(e.인상후연봉||e.인상전연봉),0);
+  const budget = after - before;
+  const rates  = employees.filter(e=>e.인상률>0).map(e=>e.인상률);
+  const avgR   = rates.length ? (rates.reduce((a,b)=>a+b,0)/rates.length) : 0;
+  const maxR   = rates.length ? Math.max(...rates) : 0;
+
+  document.getElementById('t3-total').textContent  = total;
+  document.getElementById('t3-before').textContent = fmtB(before);
+  document.getElementById('t3-after').textContent  = fmtB(after);
+  document.getElementById('t3-budget').textContent = budget ? fmtB(budget) : '—';
+  document.getElementById('t3-avgrate').textContent = avgR ? avgR.toFixed(1) : '—';
+  document.getElementById('t3-maxrate').textContent = maxR ? maxR.toFixed(1) : '—';
+
+  buildFilterChips();
+  renderResultTable();
+  buildGroupSummary();
+}
+
+function buildFilterChips() {
+  const filterCols = ['직원유형','직책','직급','부서1','평가등급'];
+  const wrap = document.getElementById('filter-chips');
+  wrap.innerHTML = '';
+  filterCols.forEach(col => {
+    const vals = [...new Set(employees.map(e => getKey(e, col)).filter(v => v && v !== '(미지정)'))].sort();
+    if (vals.length < 2) return;
+    vals.forEach(v => {
+      const chip = document.createElement('button');
+      chip.className = 'filter-chip' + (activeFilters[col] === v ? ' active' : '');
+      chip.textContent = `${col}: ${v}`;
+      chip.onclick = () => toggleFilter(col, v);
+      wrap.appendChild(chip);
+    });
+    const sep = document.createElement('span');
+    sep.style.cssText = 'width:1px;height:20px;background:var(--border2);display:inline-block;margin:0 4px;';
+    wrap.appendChild(sep);
+  });
+}
+
+function toggleFilter(col, val) {
+  if (activeFilters[col] === val) delete activeFilters[col];
+  else activeFilters[col] = val;
+  buildFilterChips();
+  renderResultTable();
+}
+
+function resetFilter() {
+  activeFilters = {};
+  buildFilterChips();
+  renderResultTable();
+}
+
+function getFilteredEmployees() {
+  return employees.filter(e => {
+    for (const [col, val] of Object.entries(activeFilters)) {
+      if (getKey(e, col) !== val) return false;
+    }
+    return true;
+  });
+}
+
+function renderResultTable() {
+  const filtered = getFilteredEmployees();
+  const tbody = document.getElementById('result-tbody');
+  if (!filtered.length) {
+    tbody.innerHTML = '<tr class="empty-row"><td colspan="12">해당 조건의 데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map((e, i) => {
+    const delta = (e.인상후연봉 || e.인상전연봉) - e.인상전연봉;
+    return `<tr>
+      <td>${i+1}</td>
+      <td>${e.사번}</td><td>${e.이름}</td><td>${e.직책}</td><td>${e.직급}</td>
+      <td>${e.부서1}</td><td>${e.평가등급}</td>
+      <td class="num">${fmt(e.인상전연봉)}</td>
+      <td class="num accent">${e.인상률 ? e.인상률.toFixed(1)+'%' : '—'}</td>
+      <td class="num green">${delta ? '+'+fmt(delta) : '—'}</td>
+      <td class="num green">${e.인상후연봉 ? fmt(e.인상후연봉) : fmt(e.인상전연봉)}</td>
+      <td class="num">${e.인상후월급여 ? fmt(e.인상후월급여) : fmt(e.인상전월급여)}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildGroupSummary() {
+  const { cond1, cond2 } = simConditions;
+  if (!cond1) { document.getElementById('group-summary-card').style.display = 'none'; return; }
+
+  document.getElementById('group-summary-card').style.display = 'block';
+  const label = cond2 ? `${cond1} × ${cond2} 그룹별 요약` : `${cond1}별 요약`;
+  document.getElementById('group-summary-title').textContent = label;
+
+  const head = document.getElementById('group-summary-head');
+  const body = document.getElementById('group-summary-body');
+
+  if (!cond2) {
+    head.innerHTML = `<th>${cond1}</th><th>인원</th><th>인상 전 연봉 총액</th><th>인상률</th><th>인상액 총합</th><th>인상 후 연봉 총액</th>`;
+    const vals = [...new Set(employees.map(e=>getKey(e,cond1)))].sort();
+    body.innerHTML = vals.map(v => {
+      const grp = employees.filter(e=>getKey(e,cond1)===v);
+      const before = grp.reduce((s,e)=>s+e.인상전연봉,0);
+      const after  = grp.reduce((s,e)=>s+(e.인상후연봉||e.인상전연봉),0);
+      const rates  = grp.filter(e=>e.인상률>0).map(e=>e.인상률);
+      const avgR   = rates.length ? (rates.reduce((a,b)=>a+b,0)/rates.length) : 0;
+      return `<tr>
+        <td>${v}</td>
+        <td class="num">${grp.length}명</td>
+        <td class="num">${fmt(before)}</td>
+        <td class="num accent">${avgR ? avgR.toFixed(1)+'%' : '—'}</td>
+        <td class="num green">+${fmt(after-before)}</td>
+        <td class="num green">${fmt(after)}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    const vals1 = [...new Set(employees.map(e=>getKey(e,cond1)))].sort();
+    const vals2 = [...new Set(employees.map(e=>getKey(e,cond2)))].sort();
+    head.innerHTML = `<th>${cond1} \\ ${cond2}</th>` + vals2.map(v=>`<th>${v}</th>`).join('') + '<th>합계</th>';
+    body.innerHTML = vals1.map(v1 => {
+      const row1Total = employees.filter(e=>getKey(e,cond1)===v1).reduce((s,e)=>s+(e.인상후연봉||e.인상전연봉),0);
+      const cells = vals2.map(v2 => {
+        const grp = employees.filter(e=>getKey(e,cond1)===v1&&getKey(e,cond2)===v2);
+        const rates = grp.filter(e=>e.인상률>0).map(e=>e.인상률);
+        const avgR = rates.length ? (rates.reduce((a,b)=>a+b,0)/rates.length) : 0;
+        return `<td class="num">${avgR ? avgR.toFixed(1)+'%' : '—'}<br><small style="color:var(--text3)">${grp.length}명</small></td>`;
+      }).join('');
+      return `<tr><th>${v1}</th>${cells}<td class="num green">${fmt(row1Total)}</td></tr>`;
+    }).join('');
+  }
+}
+
+// ══════════════════════════════════════════
+// 다운로드
+// ══════════════════════════════════════════
+function downloadTemplate() {
+  const ws = XLSX.utils.aoa_to_sheet([COLS]);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '대상자');
+  XLSX.writeFile(wb, '연봉인상_대상자_양식.xlsx');
+}
+
+function downloadData() {
+  if (!employees.length) { alert('데이터가 없습니다.'); return; }
+  const rows = employees.map(e => ({
+    '사번': e.사번, '이름': e.이름, '직원유형': e.직원유형, '인사상태': e.인사상태,
+    '직책': e.직책, '직급': e.직급, '입사일': e.입사일,
+    '부서1': e.부서1, '부서2': e.부서2, '부서3': e.부서3, '부서4': e.부서4,
+    '총 경력': e.총경력, '평가등급': e.평가등급,
+    '인상 전 연봉': e.인상전연봉, '인상 전 월급여': e.인상전월급여,
+    '인상률(%)': e.인상률,
+    '인상 후 연봉': e.인상후연봉 || e.인상전연봉,
+    '인상 후 월급여': e.인상후월급여 || e.인상전월급여,
+    '인상액': (e.인상후연봉||e.인상전연봉) - e.인상전연봉,
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '인상결과');
+  XLSX.writeFile(wb, '연봉인상_결과.xlsx');
+}
+
+function clearData() {
+  if (!confirm('모든 데이터를 초기화할까요?')) return;
+  employees = [];
+  totalBudget = 0;
+  activeFilters = {};
+  localStorage.removeItem('salary_sim_employees');
+  document.getElementById('table-card').style.display = 'none';
+  document.getElementById('btn-download-data').style.display = 'none';
+  document.getElementById('btn-clear').style.display = 'none';
+  updateT1Metrics();
+  document.getElementById('main-tbody').innerHTML = '';
+}
+
+// ══════════════════════════════════════════
+// 로컬 저장
+// ══════════════════════════════════════════
+function saveLocal() {
+  try { localStorage.setItem('salary_sim_employees', JSON.stringify(employees)); } catch(e) {}
+}
+
+function loadLocal() {
+  try {
+    const d = localStorage.getItem('salary_sim_employees');
+    if (d) {
+      employees = JSON.parse(d);
+      if (employees.length) onDataLoaded();
+    }
+  } catch(e) {}
+}
+
+// ══════════════════════════════════════════
+// 숫자 포맷
+// ══════════════════════════════════════════
+function fmt(v)  { return Math.round(v||0).toLocaleString('ko-KR'); }
+function fmtB(v) {
+  const n = Math.abs(v||0);
+  if (n >= 1e8) return (v/1e8).toFixed(1) + '억';
+  if (n >= 1e4) return (v/1e4).toFixed(0) + '만';
+  return fmt(v);
+}
+
+// ══════════════════════════════════════════
+// 초기화
+// ══════════════════════════════════════════
+loadLocal();
+</script>
 </body>
 </html>
