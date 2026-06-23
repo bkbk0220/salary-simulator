@@ -498,11 +498,13 @@
     <div class="card-header">
       <div>
         <div class="card-title">조건별 인상률 시뮬레이션</div>
-        <div class="card-subtitle">최대 2가지 조건을 선택하면 매트릭스 인상률을 계산합니다</div>
+        <div class="card-subtitle">조건별 가중치를 입력하면 총 재원에 맞는 인상률 매트릭스가 자동 계산됩니다</div>
       </div>
-      <button class="btn primary" onclick="runSimulation()">시뮬레이션 실행</button>
+      <button class="btn primary" onclick="runSimulation()">탭1·3에 결과 적용</button>
     </div>
-    <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:16px;">
+
+    <!-- 조건 선택 -->
+    <div class="form-grid" style="grid-template-columns: 1fr 1fr; margin-bottom:20px;">
       <div class="form-group">
         <label>조건 1 (필수)</label>
         <select id="cond1" onchange="updateCondOptions()">
@@ -530,18 +532,33 @@
         </select>
       </div>
     </div>
-    <div id="matrix-wrap" style="display:none">
-      <div class="section-divider" style="margin-bottom:12px">인상률 입력 (%) — 총 재원 내에서 자동 검증됩니다</div>
+
+    <div id="sim-empty" style="text-align:center; padding:32px; color:var(--text3); font-size:13px;">
+      대상자 데이터를 먼저 업로드하고 조건을 선택하세요.
+    </div>
+
+    <div id="weight-wrap" style="display:none">
+
+      <!-- 안내 박스 -->
+      <div style="background:var(--accent-bg); border-radius:var(--radius-sm); padding:12px 16px; margin-bottom:20px; font-size:12.5px; color:var(--accent-text); line-height:1.7;">
+        💡 <strong>사용 방법</strong> — 각 조건의 가중치를 입력하세요. 중간값(기준)은 <strong>1.0</strong>으로 자동 설정됩니다.<br>
+        총 재원과 각 그룹의 연봉 총액을 기반으로 <strong>기준 인상률(X)</strong>이 역산되고, 매트릭스 전체가 자동으로 채워집니다.
+      </div>
+
+      <!-- 가중치 입력 영역 -->
+      <div id="weight-inputs-wrap" style="display:flex; gap:24px; flex-wrap:wrap; margin-bottom:20px;"></div>
+
+      <!-- 역산 결과 요약 -->
+      <div id="calc-summary" style="margin-bottom:16px;"></div>
+
+      <!-- 매트릭스 결과 테이블 -->
+      <div class="section-divider" style="margin-bottom:10px;">자동 계산된 인상률 매트릭스</div>
       <div class="table-wrap">
         <table class="matrix-table" id="matrix-table">
           <thead><tr id="matrix-head"></tr></thead>
           <tbody id="matrix-body"></tbody>
         </table>
       </div>
-      <div id="matrix-result" style="margin-top:12px"></div>
-    </div>
-    <div id="sim-empty" style="text-align:center; padding:32px; color:var(--text3); font-size:13px;">
-      대상자 데이터를 먼저 업로드하고 조건을 선택하세요.
     </div>
   </div>
 </div>
@@ -903,9 +920,11 @@ function updateCondOptions() {
   const c1 = document.getElementById('cond1').value;
   const c2 = document.getElementById('cond2').value;
   simConditions = { cond1: c1, cond2: c2 };
-  if (c1 && employees.length) buildMatrix();
-  else {
-    document.getElementById('matrix-wrap').style.display = 'none';
+  if (c1 && employees.length) {
+    buildWeightInputs();
+    calcMatrix();
+  } else {
+    document.getElementById('weight-wrap').style.display = 'none';
     document.getElementById('sim-empty').style.display = '';
   }
 }
@@ -915,81 +934,247 @@ function getKey(emp, col) {
   return emp[map[col]] || '(미지정)';
 }
 
-function buildMatrix() {
+// 가중치 입력 UI 생성
+function buildWeightInputs() {
   const { cond1, cond2 } = simConditions;
-  if (!cond1 || !employees.length) return;
+  const wrap = document.getElementById('weight-inputs-wrap');
+
   const vals1 = [...new Set(employees.map(e => getKey(e, cond1)))].sort();
   const vals2 = cond2 ? [...new Set(employees.map(e => getKey(e, cond2)))].sort() : null;
-  const head = document.getElementById('matrix-head');
-  const body = document.getElementById('matrix-body');
 
-  if (!vals2) {
-    head.innerHTML = `<th>${cond1}</th><th>인원 수</th><th>연봉 총액</th><th>인상률 (%)</th>`;
-    body.innerHTML = vals1.map(v1 => {
-      const grp = employees.filter(e => getKey(e, cond1) === v1);
-      const total = grp.reduce((s,e)=>s+e.인상전연봉,0);
-      return `<tr>
-        <td>${v1}</td>
-        <td class="num">${grp.length}명</td>
-        <td class="num">${fmt(total)}</td>
-        <td><input type="number" step="0.1" min="0" max="100" placeholder="0.0"
-             id="mrate_${encodeKey(v1)}" oninput="validateMatrix()" /></td>
-      </tr>`;
-    }).join('');
-  } else {
-    head.innerHTML = `<th>${cond1} \\ ${cond2}</th>` + vals2.map(v => `<th>${v}</th>`).join('');
-    body.innerHTML = vals1.map(v1 => {
-      const cells = vals2.map(v2 => {
-        const grp = employees.filter(e => getKey(e,cond1)===v1 && getKey(e,cond2)===v2);
-        const tip = grp.length ? `${grp.length}명 / ${fmt(grp.reduce((s,e)=>s+e.인상전연봉,0))}원` : '0명';
-        return `<td title="${tip}"><input type="number" step="0.1" min="0" max="100" placeholder="${grp.length?'0.0':'—'}"
-               ${!grp.length ? 'disabled style="opacity:0.3"' : ''}
-               id="mrate_${encodeKey(v1)}_${encodeKey(v2)}" oninput="validateMatrix()" /></td>`;
-      }).join('');
-      return `<tr><th>${v1}</th>${cells}</tr>`;
-    }).join('');
+  // 중간 인덱스를 기준(1.0)으로 설정
+  const mid1 = Math.floor(vals1.length / 2);
+  const mid2 = vals2 ? Math.floor(vals2.length / 2) : null;
+
+  let html = '';
+
+  // 조건1 가중치 입력 블록
+  html += `<div style="flex:1; min-width:200px;">
+    <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:10px;">
+      ${cond1} 가중치
+      <span style="font-size:11px; color:var(--text3); font-weight:400; margin-left:4px;">(기준: ${vals1[mid1]} = 1.0)</span>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">`;
+
+  vals1.forEach((v, i) => {
+    const isBase = i === mid1;
+    const defaultW = isBase ? '1.0' : '';
+    html += `<div style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:12px; color:var(--text); width:80px; text-align:right;">${v}</span>
+      <input type="number" step="0.01" min="0.01" max="10"
+        id="w1_${encodeKey(v)}"
+        value="${isBase ? '1.0' : defaultW}"
+        placeholder="${isBase ? '1.0 (기준)' : '예: 1.3'}"
+        ${isBase ? 'style="border-color:var(--accent); background:var(--accent-bg); color:var(--accent-text);"' : ''}
+        oninput="calcMatrix()"
+        style="width:100px; height:32px; border:0.5px solid var(--border2); border-radius:var(--radius-sm); padding:0 8px; font-size:13px; font-family:inherit; background:var(--surface); color:var(--text); ${isBase ? 'border-color:var(--accent); background:var(--accent-bg);' : ''}" />
+      ${isBase ? '<span style="font-size:11px; color:var(--accent-text);">기준</span>' : ''}
+    </div>`;
+  });
+  html += `</div></div>`;
+
+  // 조건2 가중치 입력 블록
+  if (vals2) {
+    html += `<div style="flex:1; min-width:200px;">
+      <div style="font-size:12px; font-weight:600; color:var(--text2); margin-bottom:10px;">
+        ${cond2} 가중치
+        <span style="font-size:11px; color:var(--text3); font-weight:400; margin-left:4px;">(기준: ${vals2[mid2]} = 1.0)</span>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px;">`;
+
+    vals2.forEach((v, i) => {
+      const isBase = i === mid2;
+      html += `<div style="display:flex; align-items:center; gap:10px;">
+        <span style="font-size:12px; color:var(--text); width:80px; text-align:right;">${v}</span>
+        <input type="number" step="0.01" min="0.01" max="10"
+          id="w2_${encodeKey(v)}"
+          value="${isBase ? '1.0' : ''}"
+          placeholder="${isBase ? '1.0 (기준)' : '예: 0.7'}"
+          oninput="calcMatrix()"
+          style="width:100px; height:32px; border:0.5px solid var(--border2); border-radius:var(--radius-sm); padding:0 8px; font-size:13px; font-family:inherit; background:var(--surface); color:var(--text); ${isBase ? 'border-color:var(--accent); background:var(--accent-bg);' : ''}" />
+        ${isBase ? '<span style="font-size:11px; color:var(--accent-text);">기준</span>' : ''}
+      </div>`;
+    });
+    html += `</div></div>`;
   }
-  document.getElementById('matrix-wrap').style.display = 'block';
+
+  wrap.innerHTML = html;
+  document.getElementById('weight-wrap').style.display = 'block';
   document.getElementById('sim-empty').style.display = 'none';
-  validateMatrix();
 }
 
-function encodeKey(v) { return v.replace(/[^a-zA-Z0-9가-힣]/g,'_'); }
-
-function validateMatrix() {
+// 핵심: 가중치 → 기준 인상률 역산 → 매트릭스 자동 계산
+function calcMatrix() {
   const { cond1, cond2 } = simConditions;
-  if (!cond1 || !totalBudget) { document.getElementById('matrix-result').innerHTML = ''; return; }
+  if (!cond1 || !employees.length || !totalBudget) {
+    document.getElementById('calc-summary').innerHTML = '';
+    renderMatrix({}, 0);
+    return;
+  }
+
+  const vals1 = [...new Set(employees.map(e => getKey(e, cond1)))].sort();
+  const vals2 = cond2 ? [...new Set(employees.map(e => getKey(e, cond2)))].sort() : null;
+
+  // 가중치 읽기
+  const w1 = {};
+  vals1.forEach(v => {
+    const el = document.getElementById(`w1_${encodeKey(v)}`);
+    w1[v] = el ? (parseFloat(el.value) || 0) : 0;
+  });
+
+  const w2 = {};
+  if (vals2) {
+    vals2.forEach(v => {
+      const el = document.getElementById(`w2_${encodeKey(v)}`);
+      w2[v] = el ? (parseFloat(el.value) || 0) : 0;
+    });
+  }
+
+  // 가중치 미입력 항목 있으면 계산 보류
+  const missing1 = vals1.filter(v => !w1[v]);
+  const missing2 = vals2 ? vals2.filter(v => !w2[v]) : [];
+  if (missing1.length || missing2.length) {
+    document.getElementById('calc-summary').innerHTML =
+      `<div class="result-bar under">⏳ 모든 가중치를 입력하면 기준 인상률이 자동 계산됩니다.</div>`;
+    renderMatrix({}, 0);
+    return;
+  }
+
+  // 역산: X = totalBudget / Σ(연봉총액 × w1 × w2)
+  let denominator = 0;
+  employees.forEach(emp => {
+    const v1 = getKey(emp, cond1);
+    const v2 = cond2 ? getKey(emp, cond2) : null;
+    const weight = w1[v1] * (v2 ? (w2[v2] || 0) : 1);
+    denominator += emp.인상전연봉 * weight;
+  });
+
+  if (!denominator) {
+    document.getElementById('calc-summary').innerHTML =
+      `<div class="result-bar over">⚠️ 계산 오류 — 가중치를 확인해주세요.</div>`;
+    return;
+  }
+
+  const baseRate = (totalBudget / denominator) * 100; // 기준 인상률 (%)
+
+  // 매트릭스 인상률 계산
+  const rateMap = {};
+  vals1.forEach(v1 => {
+    if (vals2) {
+      vals2.forEach(v2 => {
+        rateMap[`${v1}||${v2}`] = baseRate * w1[v1] * w2[v2];
+      });
+    } else {
+      rateMap[v1] = baseRate * w1[v1];
+    }
+  });
+
+  // 역산 검증: 실제 사용 재원 계산
   let usedBudget = 0;
   employees.forEach(emp => {
     const v1 = getKey(emp, cond1);
     const v2 = cond2 ? getKey(emp, cond2) : null;
-    const inputId = v2 ? `mrate_${encodeKey(v1)}_${encodeKey(v2)}` : `mrate_${encodeKey(v1)}`;
-    const el = document.getElementById(inputId);
-    const rate = el ? (parseFloat(el.value) || 0) : 0;
+    const key = v2 ? `${v1}||${v2}` : v1;
+    const rate = rateMap[key] || 0;
     usedBudget += emp.인상전연봉 * rate / 100;
   });
-  const pct = totalBudget ? (usedBudget / totalBudget * 100) : 0;
-  const diff = usedBudget - totalBudget;
-  const el = document.getElementById('matrix-result');
-  if (Math.abs(diff) < 10000)
-    el.innerHTML = `<div class="result-bar ok">✅ 총 재원과 일치합니다 — 사용: ${fmtB(usedBudget)} / 재원: ${fmtB(totalBudget)}</div>`;
-  else if (diff > 0)
-    el.innerHTML = `<div class="result-bar over">⚠️ 재원 초과 — ${fmtB(diff)} 초과 (${pct.toFixed(1)}% 사용)</div>`;
-  else
-    el.innerHTML = `<div class="result-bar under">ℹ️ 재원 미사용 — ${fmtB(Math.abs(diff))} 잔여 (${pct.toFixed(1)}% 사용)</div>`;
+
+  const diff = Math.abs(usedBudget - totalBudget);
+  const mid1 = Math.floor(vals1.length / 2);
+  const mid2 = vals2 ? Math.floor(vals2.length / 2) : null;
+  const baseLabel = vals2 ? `${vals1[mid1]} × ${vals2[mid2]}` : vals1[mid1];
+
+  document.getElementById('calc-summary').innerHTML = `
+    <div class="result-bar ok" style="flex-wrap:wrap; gap:12px;">
+      ✅ 기준 인상률 역산 완료
+      <span style="font-weight:600;">기준점(${baseLabel}) = ${baseRate.toFixed(2)}%</span>
+      <span>총 재원: ${fmtB(totalBudget)} / 사용: ${fmtB(usedBudget)}</span>
+      ${diff > 1000 ? `<span style="color:var(--red);">오차: ${fmtB(diff)}</span>` : ''}
+    </div>`;
+
+  renderMatrix(rateMap, baseRate);
+  window._lastRateMap = rateMap; // 실행 시 사용
 }
+
+// 매트릭스 테이블 렌더링
+function renderMatrix(rateMap, baseRate) {
+  const { cond1, cond2 } = simConditions;
+  if (!cond1) return;
+
+  const vals1 = [...new Set(employees.map(e => getKey(e, cond1)))].sort();
+  const vals2 = cond2 ? [...new Set(employees.map(e => getKey(e, cond2)))].sort() : null;
+  const mid1 = Math.floor(vals1.length / 2);
+  const mid2 = vals2 ? Math.floor(vals2.length / 2) : null;
+
+  const head = document.getElementById('matrix-head');
+  const body = document.getElementById('matrix-body');
+
+  if (!vals2) {
+    head.innerHTML = `<th>${cond1}</th><th>인원</th><th>연봉 총액</th><th>가중치</th><th>인상률</th><th>인상액 합계</th>`;
+    body.innerHTML = vals1.map((v1, i) => {
+      const grp = employees.filter(e => getKey(e, cond1) === v1);
+      const salTotal = grp.reduce((s,e)=>s+e.인상전연봉,0);
+      const rate = rateMap[v1] || 0;
+      const raiseAmt = salTotal * rate / 100;
+      const isBase = i === mid1;
+      return `<tr ${isBase ? 'style="background:var(--accent-bg);"' : ''}>
+        <td style="font-weight:${isBase?'600':'400'}">${v1}${isBase?' <span style="font-size:10px;color:var(--accent-text)">(기준)</span>':''}</td>
+        <td class="num">${grp.length}명</td>
+        <td class="num">${fmtComma(salTotal)}</td>
+        <td class="num">${(rateMap[v1] && baseRate) ? (rateMap[v1]/baseRate).toFixed(2) : '—'}</td>
+        <td class="num accent" style="font-weight:600">${rate ? rate.toFixed(2)+'%' : '—'}</td>
+        <td class="num green">${raiseAmt ? '+'+fmtComma(raiseAmt) : '—'}</td>
+      </tr>`;
+    }).join('');
+  } else {
+    head.innerHTML = `<th>${cond1} \\ ${cond2}</th>` +
+      vals2.map((v2, j) => `<th ${j===mid2?'style="color:var(--accent-text);background:var(--accent-bg);"':''}>${v2}${j===mid2?' ★':''}</th>`).join('') +
+      '<th>소계(인상액)</th>';
+
+    body.innerHTML = vals1.map((v1, i) => {
+      const isBaseRow = i === mid1;
+      let rowRaise = 0;
+      const cells = vals2.map((v2, j) => {
+        const isBaseCol = j === mid2;
+        const isBaseCell = isBaseRow && isBaseCol;
+        const grp = employees.filter(e => getKey(e,cond1)===v1 && getKey(e,cond2)===v2);
+        const salTotal = grp.reduce((s,e)=>s+e.인상전연봉,0);
+        const rate = rateMap[`${v1}||${v2}`] || 0;
+        const raiseAmt = salTotal * rate / 100;
+        rowRaise += raiseAmt;
+        const cellBg = isBaseCell ? 'background:var(--accent-bg);' : isBaseRow || isBaseCol ? 'background:#fafaf8;' : '';
+        return `<td style="${cellBg}">
+          <div style="font-weight:600; font-size:12px; color:${rate?'var(--accent)':'var(--text3)'};">
+            ${rate ? rate.toFixed(2)+'%' : grp.length ? '—' : '<span style="opacity:0.3">—</span>'}
+          </div>
+          <div style="font-size:10px; color:var(--text3); margin-top:2px;">${grp.length}명</div>
+        </td>`;
+      }).join('');
+      return `<tr>
+        <th style="${isBaseRow?'color:var(--accent-text);background:var(--accent-bg);':''}">${v1}${isBaseRow?' ★':''}</th>
+        ${cells}
+        <td class="num green" style="font-size:11px;">${rowRaise ? '+'+fmtComma(rowRaise) : '—'}</td>
+      </tr>`;
+    }).join('');
+  }
+}
+
+function encodeKey(v) { return v.replace(/[^a-zA-Z0-9가-힣]/g,'_'); }
 
 function runSimulation() {
   if (!employees.length) { alert('대상자 데이터를 먼저 입력해주세요.'); return; }
   const { cond1, cond2 } = simConditions;
   if (!cond1) { alert('조건 1을 선택해주세요.'); return; }
+  if (!window._lastRateMap || !Object.keys(window._lastRateMap).length) {
+    alert('가중치를 모두 입력하여 매트릭스를 먼저 계산해주세요.'); return;
+  }
+  const rateMap = window._lastRateMap;
   employees.forEach(emp => {
     const v1 = getKey(emp, cond1);
     const v2 = cond2 ? getKey(emp, cond2) : null;
-    const inputId = v2 ? `mrate_${encodeKey(v1)}_${encodeKey(v2)}` : `mrate_${encodeKey(v1)}`;
-    const el = document.getElementById(inputId);
-    const rate = el ? (parseFloat(el.value) || 0) : 0;
-    emp.인상률 = rate;
+    const key = v2 ? `${v1}||${v2}` : v1;
+    const rate = rateMap[key] || 0;
+    emp.인상률 = parseFloat(rate.toFixed(4));
     emp.인상후연봉 = Math.round(emp.인상전연봉 * (1 + rate/100));
     emp.인상후월급여 = Math.round(emp.인상후연봉 / 12);
   });
